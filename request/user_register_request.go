@@ -1,15 +1,15 @@
 package request
 
 type UserRegisterRequest struct {
-	Email     string `json:"email" validate:"required,email" form:"email"`
-	Password  string `json:"password" validate:"required" form:"password"`
-	FirstName string `json:"first_name" validate:"required" form:"first_name"`
-	LastName  string `json:"last_name" validate:"required" form:"last_name"`
-	Telephone string `json:"telephone" validate:"required" form:"telephone"`
-	Address   string `json:"address" validate:"required" form:"address"`
-	City      string `json:"city" validate:"required" form:"city"`
-	Province  string `json:"province" validate:"required" form:"province"`
-	Country   string `json:"country" validate:"required" form:"country"`
+	Email     string `form:"email" validate:"required,email"`
+	Password  string `form:"password" validate:"required"`
+	FirstName string `form:"first_name" validate:"required"`
+	LastName  string `form:"last_name" validate:"required"`
+	Telephone string `form:"telephone" validate:"required"`
+	Address   string `form:"address" validate:"required"`
+	City      string `form:"city" validate:"required"`
+	Province  string `form:"province" validate:"required"`
+	Country   string `form:"country" validate:"required"`
 }
 
 func CreateUserRegisterRequestExample() UserRegisterRequest {
