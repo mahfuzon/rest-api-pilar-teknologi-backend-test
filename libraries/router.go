@@ -7,6 +7,7 @@ import (
 
 func SetRouter() *echo.Echo {
 	e := echo.New()
+	e.Static("/", "public")
 	e.Validator = &CustomValidator{Validator: validator.New()}
 	return e
 }
