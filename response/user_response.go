@@ -27,3 +27,17 @@ func (userResponse *UserResponse) ParseToUserResponse(user models.User) {
 	userResponse.Province = user.Province
 	userResponse.Country = user.Country
 }
+
+type LoginResponse struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type UserRegisterResponse struct {
+	User  UserResponse
+	Token LoginResponse
+}
+
+type CreateNewAccessTokenResponse struct {
+	Token string `json:"token"`
+}
