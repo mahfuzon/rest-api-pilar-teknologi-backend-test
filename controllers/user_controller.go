@@ -27,8 +27,8 @@ func NewUserController(userService services.UserService, authService services.Au
 }
 
 func (controller *userController) Register(ctx echo.Context) error {
+	// binding data inputan user ke struct register
 	userRegisterRequest := request.UserRegisterRequest{}
-
 	err := ctx.Bind(&userRegisterRequest)
 	if err != nil {
 		return ctx.JSON(422, response.APIResponse{
@@ -37,9 +37,11 @@ func (controller *userController) Register(ctx echo.Context) error {
 			Data:    err.Error(),
 		})
 	}
+	// end
+
+	// validasi input
 	err = ctx.Validate(&userRegisterRequest)
 	if err != nil {
-		fmt.Println(err)
 		if _, ok := err.(*validator.InvalidValidationError); ok {
 			return ctx.JSON(422, response.APIResponse{
 				Status:  "error",
@@ -59,7 +61,9 @@ func (controller *userController) Register(ctx echo.Context) error {
 			Data:    errorMessage,
 		})
 	}
+	// end
 
+	// panggil service register
 	userRegisterResponse, err := controller.userService.Register(userRegisterRequest)
 	if err != nil {
 		return ctx.JSON(400, response.APIResponse{
@@ -68,7 +72,9 @@ func (controller *userController) Register(ctx echo.Context) error {
 			Data:    err.Error(),
 		})
 	}
+	// end
 
+	// response
 	return ctx.JSON(200, response.APIResponse{
 		Status:  "ok",
 		Message: "success create",
@@ -95,22 +101,21 @@ func (controller *userController) GetProfile(ctx echo.Context) error {
 }
 
 func (controller *userController) Login(ctx echo.Context) error {
+	// binding inputan user ke struct userLogin request
 	userLoginRequest := request.UserLoginRequest{}
-
 	err := ctx.Bind(&userLoginRequest)
 	if err != nil {
-		panic(err)
 		return ctx.JSON(400, response.APIResponse{
 			Status:  "error",
 			Message: "failed login",
 			Data:    err.Error(),
 		})
 	}
+	//  end
 
+	// validasi input
 	err = ctx.Validate(&userLoginRequest)
-
 	if err != nil {
-		panic(err)
 		if _, ok := err.(*validator.InvalidValidationError); ok {
 			return ctx.JSON(422, response.APIResponse{
 				Status:  "error",
@@ -124,46 +129,36 @@ func (controller *userController) Login(ctx echo.Context) error {
 			errorMessage = append(errorMessage, e.Error())
 		}
 
-		fmt.Println(errorMessage)
-
 		return ctx.JSON(422, response.APIResponse{
 			Status:  "error",
 			Message: "failed login",
 			Data:    errorMessage,
 		})
 	}
+	// end
 
-	userResponse, err := controller.userService.Login(userLoginRequest)
+	// panggil service login
+	loginResponse, err := controller.userService.Login(userLoginRequest)
 	if err != nil {
-		panic(err)
 		return ctx.JSON(400, response.APIResponse{
 			Status:  "error",
 			Message: "failed login",
 			Data:    err.Error(),
 		})
 	}
-	token, err := controller.authService.GenerateToken(userResponse.Id)
+	// end
 
-	if err != nil {
-		panic(err.Error())
-		return ctx.JSON(400, response.APIResponse{
-			Status:  "error",
-			Message: "failed login",
-			Data:    err.Error(),
-		})
-	}
-
+	// response
 	return ctx.JSON(200, response.APIResponse{
 		Status:  "ok",
 		Message: "success login",
-		Data:    token,
+		Data:    loginResponse,
 	})
 }
 
 func (controller *userController) UploadImage(ctx echo.Context) error {
-	img_file, err := ctx.FormFile("profile_image")
+	imgFile, err := ctx.FormFile("profile_image")
 	if err != nil {
-		fmt.Println("164")
 		return ctx.JSON(400, response.APIResponse{
 			Status:  "error",
 			Message: "failed upload image",
@@ -172,9 +167,8 @@ func (controller *userController) UploadImage(ctx echo.Context) error {
 	}
 
 	// Source
-	src, err := img_file.Open()
+	src, err := imgFile.Open()
 	if err != nil {
-		fmt.Println("174")
 		return ctx.JSON(400, response.APIResponse{
 			Status:  "error",
 			Message: "failed upload image",
@@ -191,7 +185,6 @@ func (controller *userController) UploadImage(ctx echo.Context) error {
 	path := staticPublicPath + filePath
 	dst, err := os.Create(path)
 	if err != nil {
-		fmt.Println("187")
 		return ctx.JSON(400, response.APIResponse{
 			Status:  "error",
 			Message: "failed upload image",
@@ -230,4 +223,127 @@ func (controller *userController) UploadImage(ctx echo.Context) error {
 		Data:    newUserResponse,
 	})
 
+}
+
+func (controller *userController) CreateNewAccessToken(ctx echo.Context) error {
+	createNewAccessTokenRequest := request.CreateNewAccessTokenRequest{}
+
+	// binding data inputan user ke struct input
+	err := ctx.Bind(&createNewAccessTokenRequest)
+	if err != nil {
+		return ctx.JSON(400, response.APIResponse{
+			Status:  "error",
+			Message: "failed create new access token",
+			Data:    err.Error(),
+		})
+	}
+	// end
+
+	// validasi input
+	err = ctx.Validate(&createNewAccessTokenRequest)
+	if err != nil {
+		if _, ok := err.(*validator.InvalidValidationError); ok {
+			return ctx.JSON(422, response.APIResponse{
+				Status:  "error",
+				Message: "failed create access token",
+				Data:    err.Error(),
+			})
+		}
+		var errorMessage []string
+
+		for _, e := range err.(validator.ValidationErrors) {
+			errorMessage = append(errorMessage, e.Error())
+		}
+
+		return ctx.JSON(422, response.APIResponse{
+			Status:  "error",
+			Message: "failed create new access token",
+			Data:    errorMessage,
+		})
+	}
+	// end
+
+	// panggil service get new acces token
+	createNewAccessTokenResponse, err := controller.authService.GenerateNewAccessToken(createNewAccessTokenRequest)
+	if err != nil {
+		return ctx.JSON(400, response.APIResponse{
+			Status:  "error",
+			Message: "failed create new access token",
+			Data:    err.Error(),
+		})
+	}
+	// end
+
+	// response
+	return ctx.JSON(200, response.APIResponse{
+		Status:  "ok",
+		Message: "success create new token access",
+		Data:    createNewAccessTokenResponse,
+	})
+
+}
+
+func (controller userController) FindRefreshToken(ctx echo.Context) error {
+	findrefreshTokenRequest := request.FindRefreshTokenRequest{}
+
+	// binding data request
+	err := ctx.Bind(&findrefreshTokenRequest)
+	if err != nil {
+		apiResponse := response.APIResponse{
+			Status:  "error",
+			Message: "failed get refresh token",
+			Data:    err.Error(),
+		}
+		return ctx.JSON(400, apiResponse)
+	}
+	// end
+
+	// validate data request
+	err = ctx.Validate(&findrefreshTokenRequest)
+	if err != nil {
+		var errorMessage []string
+		for _, e := range err.(validator.ValidationErrors) {
+			errorMessage = append(errorMessage, e.Error())
+		}
+
+		apiResponse := response.APIResponse{
+			Status:  "error",
+			Message: "failed get refresh token",
+			Data:    errorMessage,
+		}
+		return ctx.JSON(400, apiResponse)
+	}
+	//	end
+
+	// dapatkan user login
+	userLogin := ctx.Get("user")
+	userResponse, ok := userLogin.(response.UserResponse)
+	if !ok {
+		apiResponse := response.APIResponse{
+			Status:  "error",
+			Message: "failed get refresh token",
+			Data:    "failed parsing interface",
+		}
+		return ctx.JSON(400, apiResponse)
+	}
+	// end
+
+	// service find refresh token
+	refreshToken, err := controller.authService.FindRefreshToken(userResponse.Id, findrefreshTokenRequest)
+	if err != nil {
+		apiResponse := response.APIResponse{
+			Status:  "error",
+			Message: "failed get refresh token",
+			Data:    err.Error(),
+		}
+		return ctx.JSON(400, apiResponse)
+	}
+	// end
+
+	apiResponse := response.APIResponse{
+		Status:  "ok",
+		Message: "success get refresh token",
+		Data:    refreshToken,
+	}
+	return ctx.JSON(400, apiResponse)
 }
