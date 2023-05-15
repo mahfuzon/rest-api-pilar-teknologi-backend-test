@@ -3,7 +3,6 @@ package test
 import (
 	"encoding/json"
 	"errors"
-	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	"github.com/pilar_test_rest_api/controllers"
 	"github.com/pilar_test_rest_api/database"
@@ -28,8 +27,9 @@ func TestGetProfileUser(t *testing.T) {
 	db := database.SetDbTest()
 
 	userRepository := repositories.NewUserRepository(db)
-	userService := services.NewUserService(userRepository)
-	authService := services.NewAuthService()
+	refreshTokenRepository := repositories.NewRefreshTokenRepository(db)
+	userService := services.NewUserService(userRepository, refreshTokenRepository)
+	authService := services.NewAuthService(refreshTokenRepository)
 	userController := controllers.NewUserController(userService, authService)
 
 	user, err := libraries.CreateExampleUserObject()
@@ -38,10 +38,14 @@ func TestGetProfileUser(t *testing.T) {
 	}
 
 	db.Exec("TRUNCATE TABLE USERS")
+	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
 
-	userRepository.Create(&user)
+	err = userRepository.Create(&user)
+	if err != nil {
+		panic(err.Error())
+	}
 
-	token, err := authService.GenerateToken(user.Id)
+	token, err := authService.GenerateAccessToken(user.Id)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -60,20 +64,17 @@ func TestGetProfileUser(t *testing.T) {
 		tokenString = arrayToken[1]
 	}
 
-	jwtToken, err := authService.ValidateToken(tokenString)
+	jwtToken, err := authService.ValidateToken(tokenString, "access")
 	if err != nil {
 		panic(err.Error())
 	}
 
-	claim, ok := jwtToken.Claims.(jwt.MapClaims)
-
-	if !ok || !jwtToken.Valid {
+	claim, err := libraries.DecodeEncodedTokenToMapClaim(jwtToken)
+	if err != nil {
 		panic(err.Error())
 	}
 
-	userID := int(claim["user_id"].(float64))
-
-	userResponse, err := userService.FindById(userID)
+	userResponse, err := userService.FindById(claim.UserId)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -110,11 +111,13 @@ func TestRegister(t *testing.T) {
 	db := database.SetDbTest()
 
 	userRepository := repositories.NewUserRepository(db)
-	userService := services.NewUserService(userRepository)
-	authService := services.NewAuthService()
+	refreshTokenRepository := repositories.NewRefreshTokenRepository(db)
+	userService := services.NewUserService(userRepository, refreshTokenRepository)
+	authService := services.NewAuthService(refreshTokenRepository)
 	userController := controllers.NewUserController(userService, authService)
 
 	db.Exec("TRUNCATE TABLE USERS")
+	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
 
 	userController.Register(ctx)
 
@@ -139,12 +142,15 @@ func TestLogin(t *testing.T) {
 	ctx := router.NewContext(req, rec)
 	db := database.SetDbTest()
 
+	refreshTokenRepository := repositories.NewRefreshTokenRepository(db)
 	userRepository := repositories.NewUserRepository(db)
-	userService := services.NewUserService(userRepository)
-	authService := services.NewAuthService()
+	userService := services.NewUserService(userRepository, refreshTokenRepository)
+	authService := services.NewAuthService(refreshTokenRepository)
 	userController := controllers.NewUserController(userService, authService)
 
 	db.Exec("TRUNCATE TABLE USERS")
+	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
+
 	newUser, err := libraries.CreateExampleUserObject()
 	if err != nil {
 		panic(err.Error())
