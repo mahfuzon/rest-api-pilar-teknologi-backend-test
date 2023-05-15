@@ -2,6 +2,7 @@ package database
 
 import (
 	"log"
+	"os"
 
 	"gorm.io/gorm/logger"
 
@@ -10,7 +11,8 @@ import (
 )
 
 func SetDb() *gorm.DB {
-	dsn := "root:@tcp(127.0.0.1:3306)/db_pilar?charset=utf8mb4&parseTime=True&loc=Local"
+	dbName := os.Getenv("DB_NAME")
+	dsn := "root:@tcp(127.0.0.1:3306)/" + dbName + "?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Info)})
 	if err != nil {
 		log.Fatal(err.Error())
@@ -20,7 +22,8 @@ func SetDb() *gorm.DB {
 }
 
 func SetDbTest() *gorm.DB {
-	dsn := "root:@tcp(127.0.0.1:3306)/db_pilar_test?charset=utf8mb4&parseTime=True&loc=Local"
+	dbName := os.Getenv("DB_TEST_NAME")
+	dsn := "root:@tcp(127.0.0.1:3306)/" + dbName + "?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Info)})
 	if err != nil {
 		log.Fatal(err.Error())
