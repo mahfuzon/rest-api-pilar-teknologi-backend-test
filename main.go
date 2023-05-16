@@ -12,13 +12,13 @@ import (
 
 func main() {
 	router := libraries.SetRouter()
-	db := database.SetDb()
 
 	err := godotenv.Load()
 	if err != nil {
 		router.Logger.Fatal("Error loading .env file")
 	}
 
+	db := database.SetDb()
 	refreshTokenRepository := repositories.NewRefreshTokenRepository(db)
 
 	userRepository := repositories.NewUserRepository(db)
@@ -38,7 +38,7 @@ func main() {
 	api.POST("/login", userController.Login)
 	api.GET("/profile", userController.GetProfile, middleware.AuthMiddleware(userService, authService))
 	api.POST("/upload", userController.UploadImage, middleware.AuthMiddleware(userService, authService))
-	api.POST("/create-new-access-token", userController.CreateNewAccessToken, middleware.AuthMiddleware(userService, authService))
-	api.GET("/get-refresh-token/:refresh_token", userController.CreateNewAccessToken, middleware.AuthMiddleware(userService, authService))
+	api.POST("/create-new-access-token", userController.CreateNewAccessToken)
+	api.GET("/get-refresh-token/:refresh_token", userController.CreateNewAccessToken)
 	router.Logger.Fatal(router.Start(":8000"))
 }

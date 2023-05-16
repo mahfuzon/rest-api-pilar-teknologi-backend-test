@@ -2,98 +2,96 @@ package test
 
 import (
 	"encoding/json"
-	"errors"
-	"github.com/labstack/echo/v4"
-	"github.com/pilar_test_rest_api/controllers"
-	"github.com/pilar_test_rest_api/database"
-	"github.com/pilar_test_rest_api/libraries"
-	"github.com/pilar_test_rest_api/repositories"
-	"github.com/pilar_test_rest_api/response"
-	"github.com/pilar_test_rest_api/services"
-	"github.com/stretchr/testify/assert"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"github.com/labstack/echo/v4"
+	"github.com/pilar_test_rest_api/controllers"
+	"github.com/pilar_test_rest_api/database"
+	"github.com/pilar_test_rest_api/libraries"
+	"github.com/pilar_test_rest_api/middleware"
+	"github.com/pilar_test_rest_api/models"
+	"github.com/pilar_test_rest_api/repositories"
+	"github.com/pilar_test_rest_api/request"
+	"github.com/pilar_test_rest_api/services"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
-func TestGetProfileUser(t *testing.T) {
-	router := libraries.SetRouter() // setup router
-
-	req := httptest.NewRequest(http.MethodGet, "http://localhost:8000/api/profile", nil)
-	rec := httptest.NewRecorder()
-	ctx := router.NewContext(req, rec)
-	db := database.SetDbTest()
-
+func setupUserController(db *gorm.DB) *controllers.UserController {
 	userRepository := repositories.NewUserRepository(db)
 	refreshTokenRepository := repositories.NewRefreshTokenRepository(db)
 	userService := services.NewUserService(userRepository, refreshTokenRepository)
 	authService := services.NewAuthService(refreshTokenRepository)
 	userController := controllers.NewUserController(userService, authService)
+	return userController
+}
 
+func TestGetProfileUser(t *testing.T) {
+	router := libraries.SetRouter() // setup router
+	db := database.SetDbTest()      // setup db test
+
+	// clean data
+	db.Exec("TRUNCATE TABLE USERS")
+	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
+	// end
+
+	userController := setupUserController(db)
+	userRepository := repositories.NewUserRepository(db)
+	refreshTokenRepository := repositories.NewRefreshTokenRepository(db)
+	userService := services.NewUserService(userRepository, refreshTokenRepository)
+	authService := services.NewAuthService(refreshTokenRepository)
+
+	// create data user
 	user, err := libraries.CreateExampleUserObject()
 	if err != nil {
 		panic(err.Error())
 	}
+	err = db.Create(&user).Error
+	if err != nil {
+		panic(err.Error())
+	}
+	// end
 
-	db.Exec("TRUNCATE TABLE USERS")
-	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
+	// create token authorization
+	tokendEncoded, err := libraries.GenerateNewToken(user.Id, "access")
+	if err != nil {
+		panic(err.Error())
+	}
+	// end
 
-	err = userRepository.Create(&user)
+	router.GET("/api/profile", userController.GetProfile)
+	router.Use(middleware.AuthMiddleware(userService, authService))
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8000/api/profile", nil)
+	rec := httptest.NewRecorder()
+	req.Header.Set("Authorization", "Bearer "+tokendEncoded)
+	router.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	body, _ := io.ReadAll(res.Body)
+	var responseBody map[string]interface{}
+	err = json.Unmarshal(body, &responseBody)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	token, err := authService.GenerateAccessToken(user.Id)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	ctx.Request().Header.Set("Authorization", "Bearer "+token)
-
-	authToken := ctx.Request().Header.Get("Authorization")
-
-	if !strings.Contains(authToken, "Bearer") {
-		panic(errors.New("invalid token bearer"))
-	}
-
-	tokenString := ""
-	arrayToken := strings.Split(authToken, " ")
-	if len(arrayToken) == 2 {
-		tokenString = arrayToken[1]
-	}
-
-	jwtToken, err := authService.ValidateToken(tokenString, "access")
-	if err != nil {
-		panic(err.Error())
-	}
-
-	claim, err := libraries.DecodeEncodedTokenToMapClaim(jwtToken)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	userResponse, err := userService.FindById(claim.UserId)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	ctx.Set("user", userResponse)
-
-	userController.GetProfile(ctx)
-
-	apiResponse := response.APIResponse{}
-	err = json.Unmarshal(rec.Body.Bytes(), &apiResponse)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	assert.Equal(t, "ok", apiResponse.Status, apiResponse.Data)
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "success get profile", responseBody["message"], responseBody["data"])
 }
 
 func TestRegister(t *testing.T) {
+	db := database.SetDbTest()
+	db.Exec("TRUNCATE TABLE USERS")
+	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
+
 	router := libraries.SetRouter()
+	userController := setupUserController(db)
+	router.POST("api/register", userController.Register)
+
 	f := make(url.Values)
 	f.Set("first_name", "Jon Snow")
 	f.Set("email", "jon@labstack.com")
@@ -107,63 +105,182 @@ func TestRegister(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "http://localhost:8000/api/register", strings.NewReader(f.Encode()))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
 	rec := httptest.NewRecorder()
-	ctx := router.NewContext(req, rec)
-	db := database.SetDbTest()
+	router.ServeHTTP(rec, req)
 
-	userRepository := repositories.NewUserRepository(db)
-	refreshTokenRepository := repositories.NewRefreshTokenRepository(db)
-	userService := services.NewUserService(userRepository, refreshTokenRepository)
-	authService := services.NewAuthService(refreshTokenRepository)
-	userController := controllers.NewUserController(userService, authService)
-
-	db.Exec("TRUNCATE TABLE USERS")
-	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
-
-	userController.Register(ctx)
-
-	apiResponse := response.APIResponse{}
-	err := json.Unmarshal(rec.Body.Bytes(), &apiResponse)
+	res := rec.Result()
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		panic(err.Error())
 	}
+	var responseBody map[string]interface{}
+	err = json.Unmarshal(body, &responseBody)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Println(responseBody)
 
-	assert.Equal(t, "ok", apiResponse.Status, apiResponse.Data)
+	assert.Equal(t, "ok", responseBody["status"], responseBody["data"])
 }
 
 func TestLogin(t *testing.T) {
-	router := libraries.SetRouter()
-	f := make(url.Values)
-	f.Set("email", "email@example.com")
-	f.Set("password", "12345678")
-
-	req := httptest.NewRequest(http.MethodPost, "http://localhost:8000/api/login", strings.NewReader(f.Encode()))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
-	rec := httptest.NewRecorder()
-	ctx := router.NewContext(req, rec)
 	db := database.SetDbTest()
-
-	refreshTokenRepository := repositories.NewRefreshTokenRepository(db)
-	userRepository := repositories.NewUserRepository(db)
-	userService := services.NewUserService(userRepository, refreshTokenRepository)
-	authService := services.NewAuthService(refreshTokenRepository)
-	userController := controllers.NewUserController(userService, authService)
-
 	db.Exec("TRUNCATE TABLE USERS")
 	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
 
+	// create new user
 	newUser, err := libraries.CreateExampleUserObject()
 	if err != nil {
 		panic(err.Error())
 	}
 	db.Create(&newUser)
+	// end
 
-	userController.Login(ctx)
+	router := libraries.SetRouter()
+	f := make(url.Values)
+	f.Set("email", "email@example.com")
+	f.Set("password", "12345678")
 
-	apiResponse := response.APIResponse{}
-	err = json.Unmarshal(rec.Body.Bytes(), &apiResponse)
+	userController := setupUserController(db)
+	router.POST("api/login", userController.Login)
+
+	req := httptest.NewRequest(http.MethodPost, "http://localhost:8000/api/login", strings.NewReader(f.Encode()))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	body, err := io.ReadAll(res.Body)
+	var responseBody map[string]interface{}
+	err = json.Unmarshal(body, &responseBody)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	assert.Equal(t, "ok", apiResponse.Status, apiResponse.Data)
+	assert.Equal(t, "ok", responseBody["status"], responseBody["data"])
+}
+
+func TestCreateNewAccessToken(t *testing.T) {
+	// setup router dan db
+	router := libraries.SetRouter()
+	db := database.SetDbTest()
+	// end
+
+	db.Exec("TRUNCATE TABLE USERS")
+	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
+
+	userController := setupUserController(db)
+
+	user, err := libraries.CreateExampleUserObject()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	err = db.Create(&user).Error
+	if err != nil {
+		panic(err.Error())
+	}
+
+	tokenEncoded, err := libraries.GenerateNewToken(user.Id, "refresh")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	refreshToken := models.RefreshToken{}
+	refreshToken.Token = tokenEncoded
+	refreshToken.UserId = user.Id
+	err = db.Create(&refreshToken).Error
+	if err != nil {
+		panic(err.Error())
+	}
+
+	createAccessTokenRequest := request.CreateNewAccessTokenRequest{}
+	createAccessTokenRequest.RefreshToken = refreshToken.Token
+	createAccessTokenRequest.UserId = user.Id
+
+	router.POST("/api/create-new-access-token", userController.CreateNewAccessToken)
+
+	byte, err := json.Marshal(&createAccessTokenRequest)
+	if err != nil {
+		panic(err.Error())
+	}
+	req := httptest.NewRequest(http.MethodPost,
+		"http://localhost:8000/api/create-new-access-token",
+		strings.NewReader(string(byte)))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	res := rec.Result()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		panic(err.Error())
+	}
+	var responseBody map[string]interface{}
+	err = json.Unmarshal(body, &responseBody)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println(responseBody)
+	assert.Equal(t, "ok", responseBody["status"], responseBody["data"])
+}
+
+func TestFindRefreshToken(t *testing.T) {
+	// setup router dan db
+	router := libraries.SetRouter()
+	db := database.SetDbTest()
+	// end
+
+	db.Exec("TRUNCATE TABLE USERS")
+	db.Exec("TRUNCATE TABLE REFRESH_TOKENS")
+
+	userController := setupUserController(db)
+
+	user, err := libraries.CreateExampleUserObject()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	err = db.Create(&user).Error
+	if err != nil {
+		panic(err.Error())
+	}
+
+	tokenEncoded, err := libraries.GenerateNewToken(user.Id, "refresh")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	refreshToken := models.RefreshToken{}
+	refreshToken.Token = tokenEncoded
+	refreshToken.UserId = user.Id
+	err = db.Create(&refreshToken).Error
+	if err != nil {
+		panic(err.Error())
+	}
+
+	router.GET("/api/get-refresh-token/:refresh_token", userController.FindRefreshToken)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"http://localhost:8000/api/get-refresh-token/"+tokenEncoded,
+		nil)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	res := rec.Result()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		panic(err.Error())
+	}
+	var responseBody map[string]interface{}
+	err = json.Unmarshal(body, &responseBody)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println(responseBody)
+	assert.Equal(t, "ok", responseBody["status"], responseBody["data"])
 }

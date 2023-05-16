@@ -14,19 +14,19 @@ import (
 	"time"
 )
 
-type userController struct {
+type UserController struct {
 	userService services.UserService
 	authService services.AuthService
 }
 
-func NewUserController(userService services.UserService, authService services.AuthService) *userController {
-	return &userController{
+func NewUserController(userService services.UserService, authService services.AuthService) *UserController {
+	return &UserController{
 		userService: userService,
 		authService: authService,
 	}
 }
 
-func (controller *userController) Register(ctx echo.Context) error {
+func (controller *UserController) Register(ctx echo.Context) error {
 	// binding data inputan user ke struct register
 	userRegisterRequest := request.UserRegisterRequest{}
 	err := ctx.Bind(&userRegisterRequest)
@@ -82,7 +82,7 @@ func (controller *userController) Register(ctx echo.Context) error {
 	})
 }
 
-func (controller *userController) GetProfile(ctx echo.Context) error {
+func (controller *UserController) GetProfile(ctx echo.Context) error {
 	userLogin := ctx.Get("user")
 	user, ok := userLogin.(response.UserResponse)
 	if !ok {
@@ -100,7 +100,7 @@ func (controller *userController) GetProfile(ctx echo.Context) error {
 	})
 }
 
-func (controller *userController) Login(ctx echo.Context) error {
+func (controller *UserController) Login(ctx echo.Context) error {
 	// binding inputan user ke struct userLogin request
 	userLoginRequest := request.UserLoginRequest{}
 	err := ctx.Bind(&userLoginRequest)
@@ -156,7 +156,7 @@ func (controller *userController) Login(ctx echo.Context) error {
 	})
 }
 
-func (controller *userController) UploadImage(ctx echo.Context) error {
+func (controller *UserController) UploadImage(ctx echo.Context) error {
 	imgFile, err := ctx.FormFile("profile_image")
 	if err != nil {
 		return ctx.JSON(400, response.APIResponse{
@@ -225,7 +225,7 @@ func (controller *userController) UploadImage(ctx echo.Context) error {
 
 }
 
-func (controller *userController) CreateNewAccessToken(ctx echo.Context) error {
+func (controller *UserController) CreateNewAccessToken(ctx echo.Context) error {
 	createNewAccessTokenRequest := request.CreateNewAccessTokenRequest{}
 
 	// binding data inputan user ke struct input
@@ -283,7 +283,7 @@ func (controller *userController) CreateNewAccessToken(ctx echo.Context) error {
 
 }
 
-func (controller userController) FindRefreshToken(ctx echo.Context) error {
+func (controller *UserController) FindRefreshToken(ctx echo.Context) error {
 	findrefreshTokenRequest := request.FindRefreshTokenRequest{}
 
 	// binding data request
@@ -316,20 +316,9 @@ func (controller userController) FindRefreshToken(ctx echo.Context) error {
 	//	end
 
 	// dapatkan user login
-	userLogin := ctx.Get("user")
-	userResponse, ok := userLogin.(response.UserResponse)
-	if !ok {
-		apiResponse := response.APIResponse{
-			Status:  "error",
-			Message: "failed get refresh token",
-			Data:    "failed parsing interface",
-		}
-		return ctx.JSON(400, apiResponse)
-	}
-	// end
 
 	// service find refresh token
-	refreshToken, err := controller.authService.FindRefreshToken(userResponse.Id, findrefreshTokenRequest)
+	refreshToken, err := controller.authService.FindRefreshToken(findrefreshTokenRequest)
 	if err != nil {
 		apiResponse := response.APIResponse{
 			Status:  "error",

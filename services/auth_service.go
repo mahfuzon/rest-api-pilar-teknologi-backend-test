@@ -16,7 +16,7 @@ type AuthService interface {
 	GenerateAccessToken(userID int) (string, error)
 	ValidateToken(token string, typeToken string) (*jwt.Token, error)
 	GenerateNewAccessToken(tokenRequest request.CreateNewAccessTokenRequest) (response.CreateNewAccessTokenResponse, error)
-	FindRefreshToken(userId int, findRefreshTokenRequest request.FindRefreshTokenRequest) (models.RefreshToken, error)
+	FindRefreshToken(findRefreshTokenRequest request.FindRefreshTokenRequest) (models.RefreshToken, error)
 }
 
 type authService struct {
@@ -29,8 +29,8 @@ func NewAuthService(refreshTokenRepository repositories.RefreshTokenRepository) 
 	}
 }
 
-func (s *authService) FindRefreshToken(userId int, findRefreshTokenRequest request.FindRefreshTokenRequest) (models.RefreshToken, error) {
-	refreshToken, err := s.refreshTokenRepository.Find(userId, findRefreshTokenRequest.RefreshToken)
+func (s *authService) FindRefreshToken(findRefreshTokenRequest request.FindRefreshTokenRequest) (models.RefreshToken, error) {
+	refreshToken, err := s.refreshTokenRepository.Find(findRefreshTokenRequest.RefreshToken)
 	if err != nil {
 		return refreshToken, err
 	}
@@ -65,7 +65,7 @@ func (s *authService) ValidateToken(encodedToken string, typeToken string) (*jwt
 func (s *authService) GenerateNewAccessToken(request request.CreateNewAccessTokenRequest) (response.CreateNewAccessTokenResponse, error) {
 	createNewAccessTokenResponse := response.CreateNewAccessTokenResponse{}
 
-	oldRefreshToken, err := s.refreshTokenRepository.Find(request.UserId, request.RefreshToken)
+	oldRefreshToken, err := s.refreshTokenRepository.Find(request.RefreshToken)
 	if err != nil {
 		return createNewAccessTokenResponse, err
 	}

@@ -2,8 +2,9 @@ package libraries
 
 import (
 	"errors"
-	"github.com/golang-jwt/jwt"
 	"os"
+	"time"
+	"github.com/golang-jwt/jwt"
 )
 
 type Claim struct {
@@ -44,10 +45,13 @@ func VerifyTokenBySecretKey(encodedToken string, secretKey string) (*jwt.Token, 
 }
 
 func GenerateNewToken(userId int, typeToken string) (string, error) {
-	expiredAt := 60
+	timeAdition := int64(60)
 	if typeToken == "refresh" {
-		expiredAt = 3600
+		timeAdition = int64(3600)
 	}
+
+	expiredAt := time.Now().Unix() + timeAdition
+
 	claim := jwt.MapClaims{}
 	claim["user_id"] = userId
 	claim["expired_at"] = expiredAt

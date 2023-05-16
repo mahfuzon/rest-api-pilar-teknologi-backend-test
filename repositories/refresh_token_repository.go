@@ -7,7 +7,7 @@ import (
 
 type RefreshTokenRepository interface {
 	Create(refreshToken *models.RefreshToken) error
-	Find(userId int, refreshToken string) (models.RefreshToken, error)
+	Find(refreshToken string) (models.RefreshToken, error)
 }
 
 type refreshTokenRepository struct {
@@ -29,9 +29,9 @@ func (refreshTokenRepository *refreshTokenRepository) Create(refreshToken *model
 	return nil
 }
 
-func (refreshTokenRepository *refreshTokenRepository) Find(userId int, refreshToken string) (models.RefreshToken, error) {
+func (refreshTokenRepository *refreshTokenRepository) Find(refreshToken string) (models.RefreshToken, error) {
 	refreshTokenModel := models.RefreshToken{}
-	err := refreshTokenRepository.db.Where("user_id = ?", userId).Where("token = ?", refreshToken).First(&refreshTokenModel).Error
+	err := refreshTokenRepository.db.Where("token = ?", refreshToken).First(&refreshTokenModel).Error
 	if err != nil {
 		return refreshTokenModel, err
 	}
